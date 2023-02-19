@@ -42,7 +42,7 @@ class EncoderLayer(nn.Module):
 
     def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         result = self.attention(queries, keys, values)
-        # result = nn.functional.layer_norm(result + )
+        result = nn.functional.layer_norm(result + )
 
 class DecoderLayer(nn.Module):
 
