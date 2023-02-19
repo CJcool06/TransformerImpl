@@ -5,11 +5,9 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - run: echo "Job running for branch ${{ github.ref }} in repository ${{ github.repository }}."
-      - name: Check out repository code
+      - name: Checkout repository code
         uses: actions/checkout@v3
-      - name: Test Project
-        run: |
-          echo "::group::Convert Test.ipynb"
-          ipynb-py-convert Test.ipynb Test.py
-          echo "::group::Run Test.py"
-          python3 Test.py
+      - name: Convert tests notebook
+        run: ipynb-py-convert Tests.ipynb Tests.py
+      - name: Run tests
+        run: python3 Tests.py
