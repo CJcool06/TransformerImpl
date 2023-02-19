@@ -7,7 +7,9 @@ jobs:
       - run: echo "Job running for branch ${{ github.ref }} in repository ${{ github.repository }}."
       - name: Check out repository code
         uses: actions/checkout@v3
-      - name: Compile project
+      - name: Test Project
         run: |
+          echo "::group::Convert Test.ipynb"
           ipynb-py-convert Test.ipynb Test.py
+          echo "::group::Run Test.py"
           python3 Test.py
