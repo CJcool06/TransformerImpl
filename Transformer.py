@@ -3,8 +3,18 @@ import torch
 import torch.nn as nn
 import math
 
+"""
+This script implements the Transformer from the paper "All You Need Is Attention".
+"""
 
 class Transformer(nn.Module):
+    """
+    The transformer has 6 layers of encoders and decoders. The final decoder output
+    is projected and then softmaxed to produce the probabilities of the next token.
+
+    Output:
+        n x model_dimension matrix
+    """
 
     def __init__(self, layers: int, heads: int, keys_dimension: int, values_dimension: int):
         super().__init__()
@@ -20,6 +30,8 @@ class Transformer(nn.Module):
         self.linear = nn.Linear(self.model_dimension, self.model_dimension)
 
     def forward(self, input: torch.Tensor):
+
+        # For each layer, pass through encoder and decoder
         for i in range(len(self.encoder_layers)):
             encoder_output = self.encoder_layers[i](input)
             result = self.decoder_layers[i](input, encoder_output)
@@ -57,13 +69,13 @@ class EncoderLayer(nn.Module):
         # Attention
         result = self.attention(input, input, input)
 
-        # Residual connection and layer-norm.
+        # Residual connection and layer-norm
         add_and_norm = nn.functional.layer_norm(result + input, result.shape)
 
         # Feed forward.
         result = self.FeedForwardNN(add_and_norm)
 
-        # Residual connection and layer-norm.
+        # Residual connection and layer-norm
         add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
 
         return add_and_norm
@@ -85,6 +97,15 @@ class EncoderLayer(nn.Module):
 
 
 class DecoderLayer(nn.Module):
+    """
+    A decoder layer consists of:
+    - Multi-head attention
+    - Residual connection + layer-norm
+    - Multi-head attention with encoder output as keys and values
+    - Residual connection + layer-norm
+    - Feed forward network
+    - Residual connection + layer-norm
+    """
 
     def __init__(self, heads: int, keys_dimension: int, values_dimension: int):
         super().__init__()
@@ -103,19 +124,19 @@ class DecoderLayer(nn.Module):
         # Masked attention
         result = self.attention(input, input, input)
 
-        # Residual connection and layer-norm.
+        # Residual connection and layer-norm
         add_and_norm = nn.functional.layer_norm(result + input, result.shape)
 
         # Masked attention using encoder output as keys and values
         result = self.attention(add_and_norm, encoder_output, encoder_output)
 
-        # Residual connection and layer-norm.
+        # Residual connection and layer-norm
         add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
 
-        # Feed forward.
+        # Feed forward
         result = self.FeedForwardNN(add_and_norm)
 
-        # Residual connection and layer-norm.
+        # Residual connection and layer-norm
         add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
 
         return add_and_norm
@@ -217,10 +238,10 @@ class MultiHeadAttention(nn.Module):
 
         """
 
-        # Calculate the combinations of the inputs.
+        # Calculate the combinations of the inputs
         scaled_dot_product = (queries @ keys.T) / math.sqrt(self.keys_dimension)
 
-        # Mask out the combinations that contain tokens we shouldn't be able to see.
+        # Mask out the combinations that contain tokens we shouldn't be able to see
         if self.masked:
             scaled_dot_product -= 1e9 * self.LookAheadMask(scaled_dot_product)
 
