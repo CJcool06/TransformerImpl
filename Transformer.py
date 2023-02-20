@@ -66,11 +66,11 @@ class MultiHeadAttention(nn.Module):
         self.values_dimension = values_dimension
         self.model_dimension = keys_dimension * heads
         
-        self.queries_projections = nn.ModuleList([nn.Linear(keys_dimension, self.model_dimension) for _ in range(heads)])
-        self.keys_projections = nn.ModuleList([nn.Linear(keys_dimension, self.model_dimension) for _ in range(heads)])
-        self.values_projections = nn.ModuleList([nn.Linear(values_dimension, self.model_dimension) for _ in range(heads)])
+        self.queries_projections = nn.ModuleList([nn.Linear(keys_dimension, self.keys_dimension) for _ in range(heads)])
+        self.keys_projections = nn.ModuleList([nn.Linear(keys_dimension, self.keys_dimension) for _ in range(heads)])
+        self.values_projections = nn.ModuleList([nn.Linear(values_dimension, self.values_dimension) for _ in range(heads)])
 
-        self.multihead_weights = nn.Linear(heads * values_dimension, self.model_dimension)
+        self.multihead_weights = nn.Linear(self.model_dimension, self.model_dimension)
     
     def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         """
@@ -90,7 +90,7 @@ class MultiHeadAttention(nn.Module):
                 )
             )
         
-        return self.multihead_weights(torch.concat(heads, dim=0).sum(dim=0).reshape(1, self.model_dimension))
+        return self.multihead_weights(torch.concat(heads, dim=1))
     
     def ScaledDotProductAttention(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         """
