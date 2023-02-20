@@ -11,6 +11,7 @@ class Encoder(nn.Module):
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
+        self.model_dimension = keys_dimension * heads
 
 
 
@@ -24,6 +25,7 @@ class Decoder(nn.Module):
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
+        self.model_dimension = keys_dimension * heads
 
 
 
@@ -31,18 +33,56 @@ class Decoder(nn.Module):
         pass
 
 class EncoderLayer(nn.Module):
+    """
+    An encoder layer consists of:
+    - Multi-head attention
+    - Residual connection + layer-norm
+    - Feed forward network
+    - Residual connection + layer-norm
+    """
 
     def __init__(self, heads: int, keys_dimension: int, values_dimension: int):
         super().__init__()
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
+        self.model_dimension = keys_dimension * heads
 
         self.attention = MultiHeadAttention(heads, keys_dimension, values_dimension)
+        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4)
+        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension)
 
-    def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
-        result = self.attention(queries, keys, values)
-        # result = nn.functional.layer_norm(result + )
+    def forward(self, input: torch.Tensor):
+
+        # Attention
+        result = self.attention(input, input, input)
+
+        # Residual connection and layer-norm.
+        add_and_norm = nn.functional.layer_norm(result + input, result.shape)
+
+        # Feed forward.
+        result = self.FeedForwardNN(add_and_norm)
+
+        # Residual connection and layer-norm.
+        add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
+
+        return add_and_norm
+    
+    def FeedForwardNN(self, input):
+        """
+        Passes the weighted attention through a feed forward network consisting of 
+        a hidden layer and an output layer. The hidden layer has model_dimension*4 
+        dimensions and the output layer has model_dimension dimensions.
+        """
+
+        # Linear + ReLU
+        result = nn.functional.relu(self.layer1(input))
+
+        # Linear
+        result = self.layer2(result)
+
+        return result
+
 
 class DecoderLayer(nn.Module):
 
@@ -51,7 +91,7 @@ class DecoderLayer(nn.Module):
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
-
+        self.model_dimension = keys_dimension * heads
 
 
     def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
@@ -81,21 +121,26 @@ class MultiHeadAttention(nn.Module):
         self.masked = masked
         self.words = 1
         
-        self.queries_projections = nn.ModuleList([nn.Linear(keys_dimension, self.keys_dimension) for _ in range(heads)])
-        self.keys_projections = nn.ModuleList([nn.Linear(keys_dimension, self.keys_dimension) for _ in range(heads)])
-        self.values_projections = nn.ModuleList([nn.Linear(values_dimension, self.values_dimension) for _ in range(heads)])
+        self.queries_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension) for _ in range(heads)])
+        self.keys_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension) for _ in range(heads)])
+        self.values_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.values_dimension) for _ in range(heads)])
 
         self.multihead_weights = nn.Linear(self.model_dimension, self.model_dimension)
     
     def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         """
-        queries:    n x dk matrix
-        keys:       m x dk matrix
-        values:     l x dv matrix
+        Parameters:
+            queries:    n x dk matrix
+            keys:       m x dk matrix
+            values:     l x dv matrix
+
+        Output:
+            n x dv matrix
         """
 
         heads = []
 
+        # Perform scaled dot-product attention for each head
         for head in range(self.heads):
             heads.append(
                 self.ScaledDotProductAttention(
@@ -105,8 +150,10 @@ class MultiHeadAttention(nn.Module):
                 )
             )
         
-        # print(heads[0])
-        return self.multihead_weights(torch.concat(heads, dim=1))
+        # Pass through projection layer
+        projection = self.multihead_weights(torch.concat(heads, dim=1))
+
+        return projection
     
     def ScaledDotProductAttention(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         """
@@ -139,7 +186,7 @@ class MultiHeadAttention(nn.Module):
         if self.masked:
             scaled_dot_product -= 1e9 * self.LookAheadMask(scaled_dot_product)
 
-        return nn.functional.softmax((queries @ keys.T) / math.sqrt(self.keys_dimension), dim=1) @ values
+        return nn.functional.softmax(scaled_dot_product, dim=1) @ values
     
     def LookAheadMask(self, dot_product):
         """
