@@ -4,33 +4,33 @@ import torch.nn as nn
 import math
 
 
-class Encoder(nn.Module):
+class Transformer(nn.Module):
 
-    def __init__(self, heads: int, keys_dimension: int, values_dimension: int):
+    def __init__(self, layers: int, heads: int, keys_dimension: int, values_dimension: int):
         super().__init__()
+        self.layers = layers
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
         self.model_dimension = keys_dimension * heads
 
+        self.encoder_layers = nn.ModuleList([EncoderLayer(heads, keys_dimension, values_dimension) for _ in range(layers)])
+        self.decoder_layers = nn.ModuleList([DecoderLayer(heads, keys_dimension, values_dimension) for _ in range(layers)])
 
+        self.linear = nn.Linear(self.model_dimension, self.model_dimension)
 
-    def forward(self):
-        pass
+    def forward(self, input: torch.Tensor):
+        for i in range(len(self.encoder_layers)):
+            encoder_output = self.encoder_layers[i](input)
+            result = self.decoder_layers[i](input, encoder_output)
+        
+        # Projection
+        result = self.linear(result)
 
-class Decoder(nn.Module):
+        # Softmax
+        result = nn.functional.softmax(result, dim=1)
 
-    def __init__(self, heads: int, keys_dimension: int, values_dimension: int):
-        super().__init__()
-        self.heads = heads
-        self.keys_dimension = keys_dimension
-        self.values_dimension = values_dimension
-        self.model_dimension = keys_dimension * heads
-
-
-
-    def forward(self):
-        pass
+        return result
 
 class EncoderLayer(nn.Module):
     """
@@ -93,9 +93,47 @@ class DecoderLayer(nn.Module):
         self.values_dimension = values_dimension
         self.model_dimension = keys_dimension * heads
 
+        self.attention = MultiHeadAttention(heads, keys_dimension, values_dimension, masked=True)
+        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4)
+        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension)
 
-    def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
-        pass
+
+    def forward(self, input: torch.Tensor, encoder_output: torch.Tensor):
+
+        # Masked attention
+        result = self.attention(input, input, input)
+
+        # Residual connection and layer-norm.
+        add_and_norm = nn.functional.layer_norm(result + input, result.shape)
+
+        # Masked attention using encoder output as keys and values
+        result = self.attention(add_and_norm, encoder_output, encoder_output)
+
+        # Residual connection and layer-norm.
+        add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
+
+        # Feed forward.
+        result = self.FeedForwardNN(add_and_norm)
+
+        # Residual connection and layer-norm.
+        add_and_norm = nn.functional.layer_norm(result + add_and_norm, result.shape)
+
+        return add_and_norm
+
+    def FeedForwardNN(self, input):
+        """
+        Passes the weighted attention through a feed forward network consisting of 
+        a hidden layer and an output layer. The hidden layer has model_dimension*4 
+        dimensions and the output layer has model_dimension dimensions.
+        """
+
+        # Linear + ReLU
+        result = nn.functional.relu(self.layer1(input))
+
+        # Linear
+        result = self.layer2(result)
+
+        return result
 
 class MultiHeadAttention(nn.Module):
     """
