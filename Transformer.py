@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import math
 
+LINEAR_DTYPE = torch.float32
+
 """
 This script implements the Transformer from the paper "All You Need Is Attention".
 """
@@ -13,21 +15,22 @@ class Transformer(nn.Module):
     is projected and then softmaxed to produce the probabilities of the next token.
 
     Output:
-        n x model_dimension matrix
+        n x output_size matrix
     """
 
-    def __init__(self, layers: int, heads: int, keys_dimension: int, values_dimension: int):
+    def __init__(self, layers: int, heads: int, keys_dimension: int, values_dimension: int, output_size: int):
         super().__init__()
         self.layers = layers
         self.heads = heads
         self.keys_dimension = keys_dimension
         self.values_dimension = values_dimension
         self.model_dimension = keys_dimension * heads
+        self.output_size = output_size
 
         self.encoder_layers = nn.ModuleList([EncoderLayer(heads, keys_dimension, values_dimension) for _ in range(layers)])
         self.decoder_layers = nn.ModuleList([DecoderLayer(heads, keys_dimension, values_dimension) for _ in range(layers)])
 
-        self.linear = nn.Linear(self.model_dimension, self.model_dimension)
+        self.linear = nn.Linear(self.model_dimension, self.output_size, dtype=LINEAR_DTYPE)
 
     def forward(self, input: torch.Tensor):
 
@@ -60,9 +63,9 @@ class EncoderLayer(nn.Module):
         self.values_dimension = values_dimension
         self.model_dimension = keys_dimension * heads
 
-        self.attention = MultiHeadAttention(heads, keys_dimension, values_dimension)
-        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4)
-        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension)
+        self.attention = MultiHeadAttention(heads, keys_dimension, values_dimension, masked=False)
+        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4, dtype=LINEAR_DTYPE)
+        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension, dtype=LINEAR_DTYPE)
 
     def forward(self, input: torch.Tensor):
 
@@ -115,8 +118,8 @@ class DecoderLayer(nn.Module):
         self.model_dimension = keys_dimension * heads
 
         self.attention = MultiHeadAttention(heads, keys_dimension, values_dimension, masked=True)
-        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4)
-        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension)
+        self.layer1 = nn.Linear(self.model_dimension, self.model_dimension * 4, dtype=LINEAR_DTYPE)
+        self.layer2 = nn.Linear(self.model_dimension * 4, self.model_dimension, dtype=LINEAR_DTYPE)
 
 
     def forward(self, input: torch.Tensor, encoder_output: torch.Tensor):
@@ -180,11 +183,11 @@ class MultiHeadAttention(nn.Module):
         self.masked = masked
         self.words = 1
         
-        self.queries_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension) for _ in range(heads)])
-        self.keys_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension) for _ in range(heads)])
-        self.values_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.values_dimension) for _ in range(heads)])
+        self.queries_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension, dtype=LINEAR_DTYPE) for _ in range(heads)])
+        self.keys_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.keys_dimension, dtype=LINEAR_DTYPE) for _ in range(heads)])
+        self.values_projections = nn.ModuleList([nn.Linear(self.model_dimension, self.values_dimension, dtype=LINEAR_DTYPE) for _ in range(heads)])
 
-        self.multihead_weights = nn.Linear(self.model_dimension, self.model_dimension)
+        self.multihead_weights = nn.Linear(self.model_dimension, self.model_dimension, dtype=LINEAR_DTYPE)
     
     def forward(self, queries: torch.Tensor, keys: torch.Tensor, values: torch.Tensor):
         """
