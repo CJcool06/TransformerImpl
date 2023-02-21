@@ -6,7 +6,7 @@ import math
 LINEAR_DTYPE = torch.float32
 
 """
-This script implements the Transformer from the paper "All You Need Is Attention".
+This script implements the Transformer from the paper "Attention Is All You Need".
 """
 
 class Transformer(nn.Module):
@@ -33,10 +33,14 @@ class Transformer(nn.Module):
         self.linear = nn.Linear(self.model_dimension, self.output_size, dtype=LINEAR_DTYPE)
 
     def forward(self, input: torch.Tensor):
+        encoder_output = input
 
-        # For each layer, pass through encoder and decoder
+        # For each layer, pass through encoder and decoder stacks
         for i in range(len(self.encoder_layers)):
-            encoder_output = self.encoder_layers[i](input)
+            encoder_output = self.encoder_layers[i](encoder_output)
+        
+        # TODO: Keep decoding and predicting until the "end" token is chosen, then return full predicted sequence.
+        for i in range(len(self.decoder_layers)):
             result = self.decoder_layers[i](input, encoder_output)
         
         # Projection
