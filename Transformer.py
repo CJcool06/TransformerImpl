@@ -198,10 +198,10 @@ class MultiHeadAttention(nn.Module):
         Parameters:
             queries:    n x dk matrix
             keys:       m x dk matrix
-            values:     l x dv matrix
+            values:     m x dv matrix
 
         Output:
-            n x dv matrix
+            n x model_dimension matrix
         """
 
         heads = []
