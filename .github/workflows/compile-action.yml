@@ -7,7 +7,5 @@ jobs:
       - run: echo "Job running for branch ${{ github.ref }} in repository ${{ github.repository }}."
       - name: Checkout repository code
         uses: actions/checkout@v3
-      - name: Convert tests notebook
-        run: ipynb-py-convert Tests.ipynb Tests.py
-      - name: Run tests
-        run: python3 Tests.py
+      - name: Run Tests
+        run: cd CI && chmod +x RunTests.sh && ./RunTests.sh
